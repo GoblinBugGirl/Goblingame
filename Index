@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goblin's Meme Barrel Surprise - Dopamine Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body { font-family: 'Press Start 2P', monospace; background: linear-gradient(135deg, #0f0f0f, #1a0033); }
+        .rarity-common { border: 3px solid #22c55e; }
+        .rarity-rare { border: 3px solid #3b82f6; }
+        .rarity-epic { border: 3px solid #a855f7; }
+        .rarity-legendary { border: 3px solid #facc15; box-shadow: 0 0 20px #facc15; }
+        .rarity-multi { border: 3px solid #ff00ff; box-shadow: 0 0 30px #ff00ff; animation: glow 1.5s infinite alternate; }
+        @keyframes glow { from { opacity: 0.8; } to { opacity: 1; } }
+        #goblin { transition: all 0.5s ease; cursor: pointer; }
+        #goblin.clicked { transform: rotateY(180deg) scale(1.05); }
+        @keyframes reach-in { 0%, 100% { transform: rotateY(180deg); } 50% { transform: rotateY(180deg) translateY(-20px); } }
+        #goblin.reaching { animation: reach-in 1.5s ease-in-out; }
+        #item { animation: pull-out 0.8s ease-out forwards; }
+        @keyframes pull-out { from { transform: scale(0.5) translateY(50px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+        .collection-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+        .collection-slot { width: 100px; height: 100px; border: 2px dashed #666; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 10px; text-align: center; cursor: pointer; transition: transform 0.3s; }
+        .collection-slot:hover { transform: scale(1.1); }
+        .collection-slot.selected { box-shadow: 0 0 15px #fff; }
+        .collection-slot.collected { border-style: solid; background: rgba(255,255,255,0.1); }
+        .collection-slot img { width: 80px; height: 80px; object-fit: cover; border-radius: 4px; }
+        /* Particle Effects */
+        .particles { position: absolute; pointer-events: none; }
+        .particle { position: absolute; width: 10px; height: 10px; border-radius: 50%; animation: particle-float 1s ease-out forwards; }
+        @keyframes particle-float { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-50px); } }
+        .common-particle { background: #22c55e; }
+        .rare-particle { background: #3b82f6; }
+        .epic-particle { background: #a855f7; }
+        .legendary-particle { background: #facc15; animation-duration: 1.5s; box-shadow: 0 0 10px #facc15; }
+        .multi-particle { background: linear-gradient(45deg, #ff00ff, #00ffff); animation-duration: 2s; box-shadow: 0 0 15px #ff00ff; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
+    <h1 class="text-3xl mb-4 text-green-400 tracking-widest">🗑️ Goblin's Meme Barrel Surprise</h1>
+    
+    <div id="game-container" class="relative w-[400px] h-[500px] bg-black border-4 border-green-500 rounded-2xl p-8 mb-6 shadow-2xl">
+        <!-- Goblin Image (replace src with your barrel goblin PNG URL) -->
+        <img id="goblin" src="https://i.imgur.com/your-barrel-goblin.png" alt="Goblin" class="absolute top-8 left-12 w-[320px] transition-all duration-500 hover:scale-105">
+        
+        <!-- Pulled Item Display -->
+        <div id="item-display" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-transparent hidden">
+            <img id="item" class="w-full h-full object-contain rounded-lg shadow-lg" alt="Meme Item">
+            <div id="rarity-label" class="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs font-bold bg-black px-2 py-1 rounded whitespace-nowrap"></div>
+        </div>
+        
+        <!-- Particles Container -->
+        <div id="particles" class="absolute inset-0 overflow-hidden pointer-events-none"></div>
+        
+        <!-- Instructions -->
+        <p class="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-xs text-center text-green-300">Click goblin to pull memes! Fuse for hybrids! Endless dopamine! ✨</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="flex gap-8 mb-6 text-xl">
+        <div>Score: <span id="score" class="text-green-400 font-bold">0</span></div>
+        <div>High Score: <span id="high-score" class="text-yellow-400 font-bold">0</span></div>
+        <div>Collected: <span id="collected-count" class="text-blue-400 font-bold">0</span>/<span id="total-items">0</span></div>
+    </div>
+
+    <!-- Collection Index (Pokedex-style grid) -->
+    <div class="w-full max-w-4xl mb-8">
+        <h2 class="text-2xl mb-4 text-purple-400 text-center">🗂️ Meme Collection Index</h2>
+        <div id="collection-grid" class="collection-grid justify-center"></div>
+    </div>
+
+    <!-- Fuse Button (hidden until 2+ selected) -->
+    <button id="fuse-btn" class="hidden bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-xl font-bold text-sm transition-all mb-4">Fuse Selected Memes!</button>
+
+    <!-- Controls -->
+    <div class="flex gap-4">
+        <button id="reset-btn" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-xl font-bold text-sm transition-all">Reset Game</button>
+        <button id="export-btn" class="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-xl font-bold text-sm transition-all">Export Save</button>
+    </div>
+
+    <!-- Audio Elements (REPLACE URLs with hosted MP3s) -->
+    <audio id="sound-common" src="https://example.com/common-pull.mp3"></audio> <!-- Cheery ding -->
+    <audio id="sound-rare" src="https://example.com/rare-pull.mp3"></audio> <!-- Sparkly chime -->
+    <audio id="sound-epic" src="https://example.com/epic-pull.mp3"></audio> <!-- Epic whoosh -->
+    <audio id="sound-legendary" src="https://example.com/legendary-pull.mp3"></audio> <!-- Triumphant fanfare -->
+    <audio id="sound-multi" src="https://example.com/multi-fuse.mp3"></audio> <!-- Magical fusion explode -->
+    <audio id="sound-pull" src="https://example.com/general-pull.mp3"></audio> <!-- Barrel rummage -->
+
+    <script>
+        // Meme Items with Rarity & Images (REPLACE IMAGE URLs)
+        const memeItems = [
+            { name: 'Maxwell the Cat', rarity: 'legendary', points: 100, image: 'https://i.imgur.com/maxwell-cat.png' },
+            { name: 'Doge', rarity: 'common', points: 10, image: 'https://i.imgur.com/doge.png' },
+            { name: 'This is Fine Dog', rarity: 'rare', points: 50, image: 'https://i.imgur.com/thisisfine.png' },
+            { name: 'Pepe the Frog', rarity: 'epic', points: 75, image: 'https://i.imgur.com/pepe.png' },
+            { name: 'Grumpy Cat', rarity: 'rare', points: 40, image: 'https://i.imgur.com/grumpycat.png' },
+            { name: 'Success Kid', rarity: 'common', points: 15, image: 'https://i.imgur.com/successkid.png' },
+            { name: 'Distracted Boyfriend', rarity: 'epic', points: 80, image: 'https://i.imgur.com/distractedbf.png' },
+            { name: 'SpongeBob Mocking', rarity: 'common', points: 20, image: 'https://i.imgur.com/spongebobmock.png' }
+            // Add more base memes
+        ];
+
+        // Fuse Recipes (combinations for Multi-Memes - like Pokemon hybrids)
+        const fuseRecipes = [
+            { inputs: ['Maxwell the Cat', 'Doge'], output: { name: 'Maxwell Doge', rarity: 'multi', points: 200, image: 'https://i.imgur.com/fused-maxwell-doge.png' } }, // Replace with fused image
+            { inputs: ['Pepe the Frog', 'Grumpy Cat'], output: { name: 'Grumpy Pepe', rarity: 'multi', points: 150, image: 'https://i.imgur.com/grumpy-pepe.png' } },
+            { inputs: ['This is Fine Dog', 'Success Kid'], output: { name: 'Success Fine Kid', rarity: 'multi', points: 120, image: 'https://i.imgur.com/success-fine.png' } },
+            { inputs: ['Distracted Boyfriend', 'SpongeBob Mocking'], output: { name: 'Distracted SpongeBob', rarity: 'multi', points: 180, image: 'https://i.imgur.com/distracted-spongebob.png' } }
+            // Add more recipes - order doesn't matter, duplicates not allowed
+        ];
+
+        // Rarity weights (higher = rarer)
+        const rarityWeights = { common: 60, rare: 30, epic: 9, legendary: 1 };
+        const totalWeight = Object.values(rarityWeights).reduce((a, b) => a + b, 0);
+
+        let score = 0;
+        let highScore = 0;
+        let collection = new Set(); // Unique collected items (base + fused)
+        let selectedForFuse = new Set(); // Temporary selected items for fusing
+
+        // LocalStorage keys
+        const SAVE_KEY = 'goblin-meme-barrel-save-v3';
+
+        // Init
+        function init() {
+            loadGame();
+            updateHighScore();
+            renderCollection();
+            document.getElementById('total-items').textContent = memeItems.length + fuseRecipes.length; // Base + possible fusions
+        }
+
+        // Load from localStorage
+        function loadGame() {
+            const saved = localStorage.getItem(SAVE_KEY);
+            if (saved) {
+                const data = JSON.parse(saved);
+                score = data.score || 0;
+                collection = new Set(data.collection || []);
+                highScore = data.highScore || 0;
+            }
+            updateDisplays();
+        }
+
+        // Save to localStorage
+        function saveGame() {
+            localStorage.setItem(SAVE_KEY, JSON.stringify({
+                score,
+                collection: Array.from(collection),
+                highScore
+            }));
+        }
+
+        // Update displays
+        function updateDisplays() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('collected-count').textContent = collection.size;
+            updateHighScore();
+            toggleFuseButton();
+        }
+
+        function updateHighScore() {
+            if (score > highScore) highScore = score;
+            document.getElementById('high-score').textContent = highScore;
+            saveGame();
+        }
+
+        // Render collection grid (includes base + fused)
+        function renderCollection() {
+            const grid = document.getElementById('collection-grid');
+            grid.innerHTML = '';
+            // Base items
+            memeItems.forEach(item => createCollectionSlot(item));
+            // Fused items (only show slots for possible fusions)
+            fuseRecipes.forEach(recipe => {
+                const fused = recipe.output;
+                createCollectionSlot(fused, true);
+            });
+            function createCollectionSlot(item, isFused = false) {
+                const slot = document.createElement('div');
+                slot.className = `collection-slot ${collection.has(item.name) ? 'collected rarity-' + item.rarity : 'empty'}`;
+                slot.dataset.name = item.name;
+                slot.onclick = () => toggleSelectForFuse(slot);
+                if (collection.has(item.name)) {
+                    const img = document.createElement('img');
+                    img.src = item.image;
+                    img.alt = item.name;
+                    slot.appendChild(img);
+                } else {
+                    slot.innerHTML = `<i class="fas fa-question text-gray-500 text-2xl"></i><div>${isFused ? '?? Hybrid ??' : item.name.split(' ')[0]}</div>`;
+                }
+                grid.appendChild(slot);
+            }
+        }
+
+        // Toggle select for fuse
+        function toggleSelectForFuse(slot) {
+            const name = slot.dataset.name;
+            if (collection.has(name) && memeItems.some(i => i.name === name)) { // Only base items can be fused
+                if (selectedForFuse.has(name)) {
+                    selectedForFuse.delete(name);
+                    slot.classList.remove('selected');
+                } else {
+                    selectedForFuse.add(name);
+                    slot.classList.add('selected');
+                }
+                toggleFuseButton();
+            }
+        }
+
+        // Show/hide fuse button
+        function toggleFuseButton() {
+            const fuseBtn = document.getElementById('fuse-btn');
+            fuseBtn.classList.toggle('hidden', selectedForFuse.size < 2);
+        }
+
+        // Fuse logic
+        document.getElementById('fuse-btn').addEventListener('click', () => {
+            const selectedArray = Array.from(selectedForFuse);
+            const recipe = fuseRecipes.find(r => selectedArray.every(i => r.inputs.includes(i)) && selectedArray.length === r.inputs.length);
+            if (recipe) {
+                const fused = recipe.output;
+                if (!collection.has(fused.name)) {
+                    collection.add(fused.name);
+                    score += fused.points;
+                    alert(`Fused: ${fused.name}! +${fused.points} points! 🎉`);
+                    playSound('multi');
+                    createParticles('multi', 30);
+                    selectedForFuse.clear();
+                    updateDisplays();
+                    renderCollection();
+                    saveGame();
+                } else {
+                    alert('Already fused this hybrid!');
+                }
+            } else {
+                alert('No fusion recipe for these memes! Try different combos.');
+            }
+        });
+
+        // Weighted random item by rarity
+        function getRandomItem() {
+            let rand = Math.random() * totalWeight;
+            for (let rarity in rarityWeights) {
+                rand -= rarityWeights[rarity];
+                if (rand <= 0) {
+                    const candidates = memeItems.filter(i => i.rarity === rarity);
+                    return candidates[Math.floor(Math.random() * candidates.length)];
+                }
+            }
+            return memeItems[0]; // Fallback
+        }
+
+        // Click handler
+        document.getElementById('goblin').addEventListener('click', () => {
+            const goblin = document.getElementById('goblin');
+            const itemDisplay = document.getElementById('item-display');
+            const itemImg = document.getElementById('item');
+            const rarityLabel = document.getElementById('rarity-label');
+
+            goblin.classList.add('clicked', 'reaching');
+            goblin.style.pointerEvents = 'none';
+            playSound('pull'); // General rummage sound
+
+            setTimeout(() => {
+                const item = getRandomItem();
+                itemImg.src = item.image;
+                itemImg.alt = item.name;
+                rarityLabel.textContent = item.rarity.toUpperCase();
+                rarityLabel.className = `absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-xs font-bold bg-black px-2 py-1 rounded whitespace-nowrap rarity-${item.rarity}`;
+                itemDisplay.classList.remove('hidden');
+
+                score += item.points;
+                if (!collection.has(item.name)) {
+                    collection.add(item.name);
+                }
+                playSound(item.rarity);
+                createParticles(item.rarity, item.rarity === 'legendary' ? 25 : 10);
+                updateDisplays();
+                renderCollection();
+                saveGame();
+
+                setTimeout(() => {
+                    itemDisplay.classList.add('hidden');
+                    goblin.classList.remove('clicked', 'reaching');
+                    goblin.style.pointerEvents = 'auto';
+                }, 2500);
+            }, 1200);
+        });
+
+        // Sound Player
+        function playSound(rarity) {
+            document.getElementById(`sound-${rarity}`).play().catch(e => console.log('Sound error:', e));
+        }
+
+        // Particle Creator
+        function createParticles(rarity, count) {
+            const particlesDiv = document.getElementById('particles');
+            for (let i = 0; i < count; i++) {
+                const particle = document.createElement('div');
+                particle.className = `particle ${rarity}-particle`;
+                particle.style.left = `${Math.random() * 400}px`;
+                particle.style.top = `${Math.random() * 300 + 100}px`;
+                particle.style.animationDelay = `${Math.random() * 0.5}s`;
+                particlesDiv.appendChild(particle);
+                setTimeout(() => particle.remove(), 1500);
+            }
+        }
+
+        // Reset
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            if (confirm('Reset everything?')) {
+                score = 0;
+                collection.clear();
+                selectedForFuse.clear();
+                localStorage.removeItem(SAVE_KEY);
+                updateDisplays();
+                renderCollection();
+            }
+        });
+
+        // Export (copy save data)
+        document.getElementById('export-btn').addEventListener('click', () => {
+            const data = JSON.stringify({ score, collection: Array.from(collection), highScore });
+            navigator.clipboard.writeText(data).then(() => alert('Save data copied! Paste into another browser.'));
+        });
+
+        // Auto-load on start
+        init();
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
+    <!-- ... (HTML structure same as previous) ... -->
+
+    <!-- Audio Elements (REPLACE URLs with hosted MP3s - different for each rarity) -->
+    <audio id="sound-pull" src="https://example.com/barrel-rummage.mp3"></audio> <!-- General rummage -->
+    <audio id="sound-common" src="https://example.com/common-ding.mp3"></audio> <!-- Simple chime -->
+    <audio id="sound-rare" src="https://example.com/rare-sparkle.mp3"></audio> <!-- Magical twinkle -->
+    <audio id="sound-epic" src="https://example.com/epic-whoosh.mp3"></audio> <!-- Dramatic swoosh -->
+    <audio id="sound-legendary" src="https://example.com/legendary-fanfare.mp3"></audio> <!-- Triumphant horn -->
+    <audio id="sound-multi" src="https://example.com/multi-fusion-explosion.mp3"></audio> <!-- Epic fusion boom -->
+
+    <!-- Script same as previous, with added playSound and createParticles calls -->
+    <script>
+        // ... (Full script from previous version, with the new functions for sound/particles integrated as shown in the click handler)
+    </script>
+</body>
+</html>
