@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Goblin's Meme Barrel Surprise - Dopamine Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        body { font-family: 'Press Start 2P', monospace; background: linear-gradient(135deg, #0f0f0f, #1a0033); }
+        body { font-family: 'Press Start 2P', monospace; background: linear-gradient(135deg, #0f0f0f, #1a0033); overflow-x: hidden; }
         .rarity-common { border: 3px solid #22c55e; }
         .rarity-rare { border: 3px solid #3b82f6; }
         .rarity-epic { border: 3px solid #a855f7; }
@@ -36,6 +36,24 @@
         .epic-particle { background: #a855f7; }
         .legendary-particle { background: #facc15; animation-duration: 1.5s; box-shadow: 0 0 10px #facc15; }
         .multi-particle { background: linear-gradient(45deg, #ff00ff, #00ffff); animation-duration: 2s; box-shadow: 0 0 15px #ff00ff; }
+        /* Anti-Autoclicker Pop-up */
+        #anti-auto {
+            position: absolute;
+            pointer-events: none;
+            z-index: 9999;
+            font-size: 40px;
+            display: none;
+            animation: angry-shake 0.5s infinite;
+        }
+        @keyframes angry-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        @media (max-width: 600px) { 
+            h1 { font-size: 1.5rem; }
+            .text-xl { font-size: 1rem; }
+            button { font-size: 0.8rem; padding: 8px 16px; }
+            #game-container { width: 100%; height: auto; min-height: 300px; }
+            .collection-slot { width: 70px; height: 70px; }
+            .collection-slot img { width: 50px; height: 50px; }
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
@@ -80,13 +98,16 @@
         <button id="export-btn" class="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-xl font-bold text-sm transition-all">Export Save</button>
     </div>
 
+    <!-- Anti-Autoclicker Pop-up -->
+    <div id="anti-auto" class="text-red-500">😡</div>
+
     <!-- Audio Elements (REPLACE URLs with hosted MP3s) -->
-    <audio id="sound-common" src="https://example.com/common-pull.mp3"></audio> <!-- Cheery ding -->
-    <audio id="sound-rare" src="https://example.com/rare-pull.mp3"></audio> <!-- Sparkly chime -->
-    <audio id="sound-epic" src="https://example.com/epic-pull.mp3"></audio> <!-- Epic whoosh -->
-    <audio id="sound-legendary" src="https://example.com/legendary-pull.mp3"></audio> <!-- Triumphant fanfare -->
-    <audio id="sound-multi" src="https://example.com/multi-fuse.mp3"></audio> <!-- Magical fusion explode -->
-    <audio id="sound-pull" src="https://example.com/general-pull.mp3"></audio> <!-- Barrel rummage -->
+    <audio id="sound-pull" src="https://example.com/barrel-rummage.mp3"></audio> 
+    <audio id="sound-common" src="https://example.com/common-ding.mp3"></audio> 
+    <audio id="sound-rare" src="https://example.com/rare-sparkle.mp3"></audio> 
+    <audio id="sound-epic" src="https://example.com/epic-whoosh.mp3"></audio> 
+    <audio id="sound-legendary" src="https://example.com/legendary-fanfare.mp3"></audio> 
+    <audio id="sound-multi" src="https://example.com/multi-fusion-explosion.mp3"></audio> 
 
     <script>
         // Meme Items with Rarity & Images (REPLACE IMAGE URLs)
@@ -119,6 +140,8 @@
         let highScore = 0;
         let collection = new Set(); // Unique collected items (base + fused)
         let selectedForFuse = new Set(); // Temporary selected items for fusing
+        let isAnimating = false; // Anti-spam flag
+        let clickTimes = []; // For autoclicker detection
 
         // LocalStorage keys
         const SAVE_KEY = 'goblin-meme-barrel-save-v3';
@@ -129,6 +152,7 @@
             updateHighScore();
             renderCollection();
             document.getElementById('total-items').textContent = memeItems.length + fuseRecipes.length; // Base + possible fusions
+            document.addEventListener('mousemove', updateAntiAutoPosition);
         }
 
         // Load from localStorage
@@ -224,13 +248,13 @@
                 if (!collection.has(fused.name)) {
                     collection.add(fused.name);
                     score += fused.points;
-                    alert(`Fused: ${fused.name}! +${fused.points} points! 🎉`);
                     playSound('multi');
                     createParticles('multi', 30);
                     selectedForFuse.clear();
                     updateDisplays();
                     renderCollection();
                     saveGame();
+                    alert(`Fused: ${fused.name}! +${fused.points} points! 🎉`);
                 } else {
                     alert('Already fused this hybrid!');
                 }
@@ -252,16 +276,23 @@
             return memeItems[0]; // Fallback
         }
 
-        // Click handler
+        // Click handler with anti-spam
         document.getElementById('goblin').addEventListener('click', () => {
+            if (isAnimating) return; // Anti-spam: No clicks during animation
+
+            clickTimes.push(Date.now());
+            if (clickTimes.length > 5) clickTimes.shift(); // Keep last 5 clicks
+            if (detectAutoclicker()) return; // Block if autoclick detected
+
             const goblin = document.getElementById('goblin');
             const itemDisplay = document.getElementById('item-display');
             const itemImg = document.getElementById('item');
             const rarityLabel = document.getElementById('rarity-label');
 
+            isAnimating = true;
             goblin.classList.add('clicked', 'reaching');
             goblin.style.pointerEvents = 'none';
-            playSound('pull'); // General rummage sound
+            playSound('pull');
 
             setTimeout(() => {
                 const item = getRandomItem();
@@ -285,8 +316,36 @@
                     itemDisplay.classList.add('hidden');
                     goblin.classList.remove('clicked', 'reaching');
                     goblin.style.pointerEvents = 'auto';
+                    isAnimating = false;
                 }, 2500);
             }, 1200);
+        });
+
+        // Detect autoclicker (rapid clicks)
+        function detectAutoclicker() {
+            if (clickTimes.length < 5) return false;
+            const avgInterval = (clickTimes[4] - clickTimes[0]) / 4;
+            if (avgInterval < 200) { // Less than 200ms avg = too fast for human
+                showAntiAuto();
+                return true;
+            }
+            return false;
+        }
+
+        // Show angry face pop-up following cursor
+        function showAntiAuto() {
+            const anti = document.getElementById('anti-auto');
+            anti.style.display = 'block';
+            setTimeout(() => anti.style.display = 'none', 3000); // Hide after 3s
+        }
+
+        // Update anti-auto position on mouse move
+        document.addEventListener('mousemove', (e) => {
+            const anti = document.getElementById('anti-auto');
+            if (anti.style.display === 'block') {
+                anti.style.left = `${e.clientX + 10}px`;
+                anti.style.top = `${e.clientY + 10}px`;
+            }
         });
 
         // Sound Player
@@ -328,22 +387,6 @@
 
         // Auto-load on start
         init();
-    </style>
-</head>
-<body class="min-h-screen flex flex-col items-center justify-center p-4 text-white">
-    <!-- ... (HTML structure same as previous) ... -->
-
-    <!-- Audio Elements (REPLACE URLs with hosted MP3s - different for each rarity) -->
-    <audio id="sound-pull" src="https://example.com/barrel-rummage.mp3"></audio> <!-- General rummage -->
-    <audio id="sound-common" src="https://example.com/common-ding.mp3"></audio> <!-- Simple chime -->
-    <audio id="sound-rare" src="https://example.com/rare-sparkle.mp3"></audio> <!-- Magical twinkle -->
-    <audio id="sound-epic" src="https://example.com/epic-whoosh.mp3"></audio> <!-- Dramatic swoosh -->
-    <audio id="sound-legendary" src="https://example.com/legendary-fanfare.mp3"></audio> <!-- Triumphant horn -->
-    <audio id="sound-multi" src="https://example.com/multi-fusion-explosion.mp3"></audio> <!-- Epic fusion boom -->
-
-    <!-- Script same as previous, with added playSound and createParticles calls -->
-    <script>
-        // ... (Full script from previous version, with the new functions for sound/particles integrated as shown in the click handler)
     </script>
 </body>
 </html>
